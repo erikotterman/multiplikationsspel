@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gångerspelet</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f5f5;
+      display: flex;
+      justify-content: center;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 420px;
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      text-align: center;
+      font-size: 1.4rem;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.9rem;
+      margin-bottom: 8px;
+    }
+
+    .info-row span {
+      white-space: nowrap;
+    }
+
+    .timer {
+      font-weight: 600;
+    }
+
+    .question {
+      text-align: center;
+      font-size: 2rem;
+      font-weight: 700;
+      margin: 16px 0 8px;
+    }
+
+    .answer-display {
+      text-align: center;
+      font-size: 2.2rem;
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid #ddd;
+      margin-bottom: 8px;
+      min-height: 52px;
+    }
+
+    .status {
+      text-align: center;
+      font-size: 0.95rem;
+      min-height: 22px;
+      margin-bottom: 8px;
+    }
+
+    .status.ok { color: #2e7d32; }
+    .status.err { color: #c62828; }
+
+    .keypad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .key-btn {
+      padding: 16px 0;
+      border-radius: 12px;
+      border: none;
+      font-size: 1.3rem;
+      font-weight: 600;
+      background: #eeeeee;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    .key-btn:active {
+      transform: scale(0.97);
+    }
+
+    .key-btn.special {
+      font-size: 1rem;
+    }
+
+    .key-btn.ok-btn {
+      grid-column: 1 / 4;
+      background: #4caf50;
+      color: #fff;
+      font-size: 1.2rem;
+    }
+
+    .controls {
+      margin-top: 12px;
+      text-align: center;
+    }
+
+    .main-btn {
+      width: 100%;
+      padding: 12px;
+      border-radius: 999px;
+      border: none;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: #4caf50;
+      color: #fff;
+      touch-action: manipulation;
+    }
+
+    .main-btn:active {
+      transform: scale(0.98);
+    }
+
+    .hidden { display: none; }
+
+    .flash-correct {
+      animation: flashGreen 0.25s;
+    }
+
+    .flash-wrong {
+      animation: flashRed 0.25s;
+    }
+
+    @keyframes flashGreen {
+      from { background-color: #c8e6c9; }
+      to { background-color: #ffffff; }
+    }
+
+    @keyframes flashRed {
+      from { background-color: #ffcdd2; }
+      to { background-color: #ffffff; }
+    }
+
+    .small {
+      font-size: 0.8rem;
+      color: #666;
+      text-align: center;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>Gångerspelet</h1>
+
+    <div class="info-row">
+      <span>⏱️ <span id="time" class="timer">5:00</span></span>
+      <span>Rätt: <span id="correct-count">0</span></span>
+      <span>High score: <span id="highscore">0</span></span>
+    </div>
+
+    <div id="question" class="question">Tryck start</div>
+    <div id="answer-display" class="answer-display">–</div>
+    <div id="status" class="status"></div>
+
+    <div id="keypad" class="keypad hidden">
+      <!-- Rad 1 -->
+      <button class="key-btn" data-key="7">7</button>
+      <button class="key-btn" data-key="8">8</button>
+      <button class="key-btn" data-key="9">9</button>
+      <!-- Rad 2 -->
+      <button class="key-btn" data-key="4">4</button>
+      <button class="key-btn" data-key="5">5</button>
+      <button class="key-btn" data-key="6">6</button>
+      <!-- Rad 3 -->
+      <button class="key-btn" data-key="1">1</button>
+      <button class="key-btn" data-key="2">2</button>
+      <button class="key-btn" data-key="3">3</button>
+      <!-- Rad 4 -->
+      <button class="key-btn special" data-key="C">C</button>
+      <button class="key-btn" data-key="0">0</button>
+      <button class="key-btn special" data-key="back">⌫</button>
+      <!-- Rad 5 -->
+      <button class="key-btn ok-btn" data-key="ok">Rätta ✔</button>
+    </div>
+
+    <div class="controls">
+      <button id="start-btn" class="main-btn">Starta 5-minutersspel 🚀</button>
+      <button id="again-btn" class="main-btn hidden">Spela igen 🔁</button>
+    </div>
+    <div class="small">Slumpade frågor 1–10. Samla så många rätt som möjligt på 5 minuter.</div>
+  </div>
+
+  <script>
+    // Element
+    const timeEl = document.getElementById("time");
+    const correctCountEl = document.getElementById("correct-count");
+    const highscoreEl = document.getElementById("highscore");
+    const questionEl = document.getElementById("question");
+    const answerDisplayEl = document.getElementById("answer-display");
+    const statusEl = document.getElementById("status");
+    const keypadEl = document.getElementById("keypad");
+    const startBtn = document.getElementById("start-btn");
+    const againBtn = document.getElementById("again-btn");
+
+    // Spel-state
+    let currentAnswer = null;
+    let currentInput = "";
+    let correctCount = 0;
+    let highscore = 0;
+    let timeLeft = 0; // i sekunder
+    let timerId = null;
+    let running = false;
+
+    // Läs highscore från localStorage
+    function loadHighscore() {
+      try {
+        const stored = localStorage.getItem("multiplikation_highscore");
+        if (stored) {
+          const val = parseInt(stored, 10);
+          if (!Number.isNaN(val)) {
+            highscore = val;
+          }
+        }
+      } catch (e) {
+        // Om localStorage inte funkar, strunta i det
+        highscore = 0;
+      }
+      highscoreEl.textContent = highscore.toString();
+    }
+
+    function saveHighscore() {
+      try {
+        localStorage.setItem("multiplikation_highscore", highscore.toString());
+      } catch (e) {
+        // Ignorera fel
+      }
+    }
+
+    function formatTime(seconds) {
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return `${m}:${s.toString().padStart(2, "0")}`;
+    }
+
+    function randomInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function newQuestion() {
+      const a = randomInt(1, 10);
+      const b = randomInt(1, 10);
+      currentAnswer = a * b;
+      questionEl.textContent = `${a} × ${b} = ?`;
+      currentInput = "";
+      updateAnswerDisplay();
+      statusEl.textContent = "";
+      statusEl.className = "status";
+    }
+
+    function updateAnswerDisplay() {
+      answerDisplayEl.textContent = currentInput === "" ? "?" : currentInput;
+    }
+
+    function flashCorrect() {
+      answerDisplayEl.classList.remove("flash-correct");
+      void answerDisplayEl.offsetWidth; // reset animation
+      answerDisplayEl.classList.add("flash-correct");
+    }
+
+    function flashWrong() {
+      answerDisplayEl.classList.remove("flash-wrong");
+      void answerDisplayEl.offsetWidth;
+      answerDisplayEl.classList.add("flash-wrong");
+    }
+
+    function handleDigit(d) {
+      if (!running) return;
+      if (timeLeft <= 0) return;
+      // max 3 siffror (upp till 999)
+      if (currentInput.length >= 3) return;
+      if (currentInput === "0") {
+        currentInput = d; // ersätt ledande nolla
+      } else {
+        currentInput += d;
+      }
+      updateAnswerDisplay();
+    }
+
+    function handleBackspace() {
+      if (!running) return;
+      currentInput = currentInput.slice(0, -1);
+      updateAnswerDisplay();
+    }
+
+    function handleClear() {
+      if (!running) return;
+      currentInput = "";
+      updateAnswerDisplay();
+      statusEl.textContent = "";
+      statusEl.className = "status";
+    }
+
+    function checkAnswer() {
+      if (!running) return;
+      if (timeLeft <= 0) return;
+
+      if (currentInput === "") {
+        statusEl.textContent = "Skriv ett svar först.";
+        statusEl.className = "status err";
+        return;
+      }
+
+      const value = parseInt(currentInput, 10);
+      if (value === currentAnswer) {
+        correctCount++;
+        correctCountEl.textContent = correctCount.toString();
+        statusEl.textContent = "Rätt! 🎉";
+        statusEl.className = "status ok";
+        flashCorrect();
+        currentInput = "";
+        setTimeout(() => {
+          if (running && timeLeft > 0) {
+            newQuestion();
+          }
+        }, 250);
+      } else {
+        statusEl.textContent = "Fel, försök igen!";
+        statusEl.className = "status err";
+        flashWrong();
+        currentInput = "";
+        updateAnswerDisplay();
+      }
+    }
+
+    function updateTimer() {
+      timeEl.textContent = formatTime(timeLeft);
+    }
+
+    function endGame() {
+      running = false;
+      if (timerId) {
+        clearInterval(timerId);
+        timerId = null;
+      }
+
+      keypadEl.classList.add("hidden");
+      againBtn.classList.remove("hidden");
+      startBtn.classList.add("hidden");
+
+      questionEl.textContent = "Tiden är slut!";
+      answerDisplayEl.textContent = correctCount.toString();
+      statusEl.textContent = `Du fick ${correctCount} rätt.`;
+
+      if (correctCount > highscore) {
+        highscore = correctCount;
+        highscoreEl.textContent = highscore.toString();
+        saveHighscore();
+        statusEl.textContent += " Ny high score! 🏆";
+      }
+    }
+
+    function startGame() {
+      // Reset state
+      correctCount = 0;
+      correctCountEl.textContent = "0";
+      timeLeft = 5 * 60; // 5 minuter
+      updateTimer();
+      running = true;
+
+      keypadEl.classList.remove("hidden");
+      againBtn.classList.add("hidden");
+      startBtn.classList.add("hidden");
+
+      statusEl.textContent = "";
+      statusEl.className = "status";
+
+      newQuestion();
+
+      if (timerId) {
+        clearInterval(timerId);
+      }
+      timerId = setInterval(() => {
+        if (!running) return;
+        timeLeft--;
+        updateTimer();
+        if (timeLeft <= 0) {
+          timeLeft = 0;
+          updateTimer();
+          endGame();
+        }
+      }, 1000);
+    }
+
+    // Event: knappsats
+    keypadEl.addEventListener("click", (e) => {
+      const btn = e.target.closest(".key-btn");
+      if (!btn) return;
+      const key = btn.dataset.key;
+      if (!key) return;
+
+      if (key >= "0" && key <= "9") {
+        handleDigit(key);
+      } else if (key === "back") {
+        handleBackspace();
+      } else if (key === "C") {
+        handleClear();
+      } else if (key === "ok") {
+        checkAnswer();
+      }
+    });
+
+    // Start / igen
+    startBtn.addEventListener("click", startGame);
+    againBtn.addEventListener("click", startGame);
+
+    // Init
+    loadHighscore();
+  </script>
+</body>
+</html>
